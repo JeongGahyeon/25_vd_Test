@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>광고 분석</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/wordcloud2.js/1.1.0/wordcloud2.min.js"></script>
+    
+    <style>
+        * {
+            box-sizing: border-box; 
+        }
+        body {
+            font-family: 'Malgun Gothic', '맑은 고딕', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f8f9fa;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        /* 메인 탭 메뉴 */
+        .tab-menu {
+            display: flex;
+            justify-content: center;
+            background-color: #fff;
+            padding: 20px 0;
+            border-bottom: 2px solid #eee;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+        .tab-button {
+            background-color: #000;
+            color: white;
+            border: none;
+            padding: 10px 25px;
+            margin: 0 10px;
+            cursor: pointer;
+            font-size: 1.1em;
+            font-weight: bold;
+            border-radius: 4px;
+            transition: background-color 0.2s, color 0.2s;
+        }
+        .tab-button:hover, .tab-button.active {
+            background-color: #e74c3c;
+        }
+
+        /* 메인 콘텐츠 */
+        .main-content-wrapper {
+            flex-grow: 1;
+            padding: 40px 20px;
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .tab-content { display: none; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05); }
+        .tab-content.active { display: block; }
+        
+        /* 정적 목록 스타일 */
+        .ad-list-item {
+            display: flex;
+            align-items: flex-start;
+            border-bottom: 1px solid #eee;
+            padding: 20px 0;
+            gap: 20px;
+        }
+        .ad-list-item:last-child {
+            border-bottom: none;
+        }
+        
+        /* 이미지 영역 */
+        .ad-image-container {
+            flex-shrink: 0;
+            width: 300px; /* 이미지 너비 고정 */
+            height: 350px; /* 이미지 높이 제한 */
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border: 1px solid #f0f0f0;
+            background-color: #fff;
+            border-radius: 4px;
+        }
+        .ad-image-container img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            display: block;
+        }
+
+        /* 분석 정보 영역 */
+        .ad-analysis-info {
+            flex-grow: 1;
+            text-align: left;
+        }
+        .ad-analysis-info h3 {
+            color: #3498db;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 5px;
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+        .key-emotion-list { 
+            list-style: none; 
+            padding: 0; 
+            margin-top: 15px; 
+            font-size: 0.95em;
+        }
+        .key-emotion-list li { 
+            margin-bottom: 8px; 
+        }
+        .key-emotion-list strong {
+            color: #e74c3c;
+            margin-right: 5px;
+            font-weight: bold;
+        }
+        
+        /* 모달 및 워드 클라우드 스타일 (이전과 동일) */
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.6); }
+        .modal-content { background-color: #fefefe; margin: 5% auto; padding: 30px; border: 1px solid #888; width: 90%; max-width: 900px; border-radius: 10px; position: relative; }
+        .close-btn { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .close-btn:hover { color: #000; }
+        #global-wc-container { width: 100%; height: 500px; margin-top: 20px; }
+        .stat-tab-menu { display: flex; border-bottom: 1px solid #ddd; margin-bottom: 15px; }
+        .stat-tab-button { padding: 10px 15px; cursor: pointer; border: none; background: none; font-size: 1em; color: #555; border-bottom: 3px solid transparent; margin-right: 10px; transition: color 0.2s, border-bottom-color 0.2s; }
+        .stat-tab-button:hover, .stat-tab-button.active { color: #e74c3c; border-bottom-color: #e74c3c; }
+        .stat-tab-content { display: none; }
+        .stat-tab-content.active { display: block; }
+    </style>
+</head>
+<body>
+
+    <div class="tab-menu">
+        <button class="tab-button" data-category="화장품" onclick="openTab('화장품', this)">화장품</button>
+        <button class="tab-button" data-category="전자가전" onclick="openTab('전자가전', this)">전자</button>
+        <button class="tab-button" data-category="식품건강" onclick="openTab('식품건강', this)">식품</button>
+        <button class="tab-button" data-category="공익단체" onclick="openTab('공익단체', this)">단체</button>
+        <button class="tab-button" onclick="openModal()">전체 통계</button>
+    </div>
+
+    <div class="main-content-wrapper">
+        <div id="welcome-message" class="tab-content active">
+            <h2>광고 카테고리별 분류</h2>
+            <p>상단 메뉴에서 카테고리를 선택하여 광고 이미지 분석을 시작하세요.</p>
+        </div>
+
+        <div id="화장품" class="tab-content"></div>
+        <div id="전자가전" class="tab-content"></div>
+        <div id="식품건강" class="tab-content"></div>
+        <div id="공익단체" class="tab-content"></div>
+    </div>
+
+    <div id="statisticsModal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeModal()">&times;</span>
+            <h2>광고 감정 빈도 통계</h2>
+
+            <div class="stat-tab-menu">
+                <button class="stat-tab-button active" onclick="openStatTab('global', this)">전체 40개 광고</button>
+                <button class="stat-tab-button" onclick="openStatTab('전자가전', this)">전자/가전</button>
+                <button class="stat-tab-button" onclick="openStatTab('식품건강', this)">식품/건강</button>
+                <button class="stat-tab-button" onclick="openStatTab('화장품', this)">화장품</button>
+                <button class="stat-tab-button" onclick="openStatTab('공익단체', this)">공익/단체</button>
+            </div>
+
+            <div id="global-wc-container">
+                <div id="stat-global" class="stat-tab-content active">
+                    <canvas id="wc-global"></canvas>
+                </div>
+                <div id="stat-전자가전" class="stat-tab-content">
+                    <canvas id="wc-전자가전"></canvas>
+                </div>
+                <div id="stat-식품건강" class="stat-tab-content">
+                    <canvas id="wc-식품건강"></canvas>
+                </div>
+                <div id="stat-화장품" class="stat-tab-content">
+                    <canvas id="wc-화장품"></canvas>
+                </div>
+                <div id="stat-공익단체" class="stat-tab-content">
+                    <canvas id="wc-공익단체"></canvas>
+                </div>
+            </div>
+            
+        </div>
+    </div>
+
+    <script>
+        // --- 1. 데이터 정의: 40개 광고의 핵심 정보 (간결화된 내용 적용) ---
+        const adData = {
+            '전자가전': [
+                { id: '가전-1', name: '삼성 Bespoke AI 냉장고', file: '1_25.11.18.jpg', tnm: '세련되고 우아한 톤. 미니멀리즘, 고급스러움', goal: '프리미엄 라이프 동경, 자부심 유도', summary: '제품이 아닌 고급 라이프스타일 판매' },
+                { id: '가전-2', name: 'LG전자 구독 서비스', file: '8_25.9.30.jpg', tnm: '신뢰, 체계적인 톤. 전문가 이미지', goal: '관리 부담 해소, 안심 제공', summary: '소유 책임감을 관리 서비스로 해소' },
+                { id: '가전-3', name: 'Reencle 음식물 처리기', file: '7_25.9.5.jpg', tnm: '친근, 깔끔한 분위기. 효율성 강조', goal: '일상 불편 해소, 만족감 획득', summary: '효율성을 통한 일상 번거로움 해소' },
+                { id: '가전-4', name: 'Roborock Saros Z70', file: '6_25.11.10.jpg', tnm: '미래지향적, 세련된 느낌. 기술 강조', goal: '신기술 호기심, 제품 우위 강조', summary: '첨단 기술력 기반의 성능적 우위 강조' },
+                { id: '가전-5', name: 'LIEBHERR 냉장고', file: '9_25.10.13.jpg', tnm: '고급스러움, 전문성. 타깃 맞춤 어필', goal: '선망, 자부심(꿈의 주방) 유도', summary: '높은 안목의 타깃층에게 자부심 제공' },
+                { id: '가전-6', name: 'LG UNLIMITED UNIVERSE', file: '5_25.11.10.jpg', tnm: '패셔너블, 미스터리. 과감한 톤', goal: '자유, 혁신에 대한 기대 심어주기', summary: '브랜드 가치를 혁신적으로 확장' },
+                { id: '가전-7', name: 'PURAXEL ME in', file: '2_25.11.18.jpg', tnm: '전문적, 아름다운 이미지. 자신감', goal: '외모 개선 통한 만족감, 자신감 획득', summary: '기능 기반으로 소비자의 자신감 높이기' },
+                { id: '가전-8', name: 'UNIX PROFESSIONAL', file: '3_25.11.13.jpg', tnm: '세련됨, 정교함. 프로페셔널 톤', goal: '완벽한 결과에 대한 만족감, 자부심', summary: '제품 사용 후 얻게 될 최고의 결과 어필' },
+                { id: '가전-9', name: 'RICOH GR IIIx HDF', file: '10_25.08.14.jpg', tnm: '평온, 서정적인 톤. 감성 자극', goal: '일상의 순간을 특별한 경험으로 승화', summary: '감각적 경험과 라이프스타일 가치 중시' },
+                { id: '가전-10', name: 'HOVERAir X1', file: '4_25.11.14.jpg', tnm: '강렬함, 첨단성. 속도감 강조', goal: '성능 우위, 새로운 경험에 대한 흥미 자극', summary: '스펙과 성능에 초점을 맞춘 기술적 우위' }
+            ],
+            '식품건강': [
+                { id: '식품-1', name: '버거킹 Originals', file: '5_25.7.15.jpg', tnm: '풍부하고 압도적 비주얼. 식욕 자극', goal: '충족감, 즉각적인 구매 유도', summary: '압도적 만족감을 통한 충동 구매 유도' },
+                { id: '식품-2', name: '팔도 비빔면', file: '8_25.7.4.jpg', tnm: '유쾌하고 활기찬 톤. 계절감 강조', goal: '시원한 활력, 즐거움 획득', summary: '유머와 맛으로 제품 친밀도 높이기' },
+                { id: '식품-3', name: '청정원 HOME:INGS', file: '3_25.08.21.jpg', tnm: '친절, 믿음직한 톤. 편의성 강조', goal: '관리 부담 해소, 안심 제공', summary: '요리 부담 해소를 통한 일상 편안함 제공' },
+                { id: '식품-4', name: '롯데리아 리아 새우/불고기', file: '4_25.07.18.jpg', tnm: '고급스럽고 품격있는 이미지', goal: '신뢰도, 브랜드 자긍심(세계적) 부여', summary: '프리미엄 모델 활용 이미지 격상' },
+                { id: '식품-5', name: '롯데리아 월간 리아', file: '9_25.5.30.jpg', tnm: '유머러스하고 친근한 분위기', goal: '유쾌한 공감, 브랜드 기대감 형성', summary: '유머를 통한 브랜드 애착 형성' },
+                { id: '식품-6', name: '앱솔루트 산양100', file: '2_25.11.10.jpg', tnm: '부드럽고 평온한 톤. 안전성 강조', goal: '안전한 선택이라는 확신, 안심 제공', summary: '민감 분야에서 안전성을 최우선 강조' },
+                { id: '식품-7', name: '켈로그 첵스초코', file: '7_25.7.3.jpg', tnm: '재미있고 달콤한 분위기', goal: '죄책감 없는 즐거움 (맛 + 건강)', summary: '기능과 맛의 결합으로 소비 합리화' },
+                { id: '식품-8', name: '청정원 간장', file: '6_25.6.20.jpg', tnm: '단호하고 확신에 찬 톤', goal: '요리 성공이라는 결과적 만족감 보장', summary: '단호한 메시지로 행동 변화 촉진' },
+                { id: '식품-9', name: '락토핏', file: '10_6.9.jpg', tnm: '권위적이고 압도적인 신뢰감', goal: '데이터 기반 안정감, 확신 제공', summary: '숫자/데이터 활용한 감정적 신뢰 확보' },
+                { id: '식품-10', name: '이클립스', file: '1_25.11.18.jpg', tnm: '부드럽고 평온한 톤. 힐링 연상', goal: '순간적인 휴식, 스트레스 해소 경험', summary: '감성 비주얼로 순간의 안정감 판매' }
+            ],
+            '화장품': [
+                { id: '화장품-1', name: '바노바기', file: '1_25.11.14.jpg', tnm: '친근하고 유쾌한 톤. 솔직함', goal: '접근성 통한 자신감 획득 유도', summary: '솔직하고 대중적인 톤으로 친밀도 높임' },
+                { id: '화장품-2', name: 'Benefit', file: '2_25.11.10.jpg', tnm: '따뜻하고 자연스러운 분위기 연출', goal: '일상 속 편안한 매력 강조', summary: '화려함 대신 친근함으로 매력 어필' },
+                { id: '화장품-3', name: 'JO MALONE', file: '3_25.9.17.jpg', tnm: '예술적, 복합적. 감각적 톤', goal: '향을 통한 탐미적인 감각 경험 자극', summary: '시각 예술성으로 감각 경험 강조' },
+                { id: '화장품-4', name: '설화수', file: '4_25.10.10.jpg', tnm: '깊이 있고 우아한 톤. 차분함', goal: '시간 초월 자부심, 안정감 획득', summary: '헤리티지 통한 흔들리지 않는 자부심 판매' },
+                { id: '화장품-5', name: 'LOUIS VUITTON', file: '5_25.10.10.jpg', tnm: '파격적, 예술적. 강렬한 톤', goal: '희소성, 명품 가치 통한 소속감 부여', summary: '럭셔리 가치로 소비자의 동경 심리 자극' },
+                { id: '화장품-6', name: 'CLIO', file: '6_25.9.4.jpg', tnm: '깔끔함, 완벽함 강조. 프로페셔널', goal: '결점 해소 통한 자신감, 만족감 제공', summary: '완벽한 커버를 통한 외모의 결점으로부터 해방' },
+                { id: '화장품-7', name: 'COSRX', file: '7_25.8.29.jpg', tnm: '활력있고 건강한 에너지 전달', goal: '생기, 피부 광채에 대한 즉각적 만족', summary: '피부 고민 해결 및 즉각적 활력 강조' },
+                { id: '화장품-8', name: '한율', file: '8_25.7.11.jpg', tnm: '자연주의적이고 평온한 분위기', goal: '스트레스 해소, 진정성 있는 안심 제공', summary: '자연의 소재로 진정성 있는 안심 구축' },
+                { id: '화장품-9', name: 'UNOVE', file: '9_25.8.5.jpg', tnm: '몽환적, 트렌디한 분위기 연출', goal: '꿈꿔온 스타일 실현에 대한 기대감', summary: '스타일 판타지 실현을 위한 감성 전략' },
+                { id: '화장품-10', name: '달바', file: '10_25.8.1.jpg', tnm: '고급스러운 기능성 강조', goal: '효능을 통한 외모 변화 확신, 기대 부여', summary: '효능과 직관적 변화에 대한 확신 제공' }
+            ],
+            '공익단체': [
+                { id: '공익-1', name: '성착취 영상(폰)', file: '1_25.11.19.jpg', tnm: '어둡고 심각한 흑백 톤. 위협적', goal: '죄책감 유발, 행동 중지 촉구', summary: '부정적 감정 통한 강력한 행동 변화 유도' },
+                { id: '공익-2', name: '디지털 성범죄 지원', file: '2_25.11.19.jpg', tnm: '도움 요청, 지원 의지 표명', goal: '안심 제공, 신고 통한 문제 해결 유도', summary: '피해자 안심 및 신고 행동 촉구' },
+                { id: '공익-3', name: '전세사기', file: '3_25.11.19.jpg', tnm: '불안감, 미스터리한 분위기', goal: '불안감 자극, 예방 행동 촉구', summary: '잠재적 불안감 자극으로 행동 변화 유도' },
+                { id: '공익-4', name: '장애인 보조견', file: '4_25.11.18.jpg', tnm: '따뜻함, 희망찬 분위기 전달', goal: '공감, 수용 통한 사회적 인식 개선', summary: '공감과 따뜻함 활용한 인식 개선 목표' },
+                { id: '공익-5', name: '심혈관 질환(심분증)', file: '5_25.11.18.jpg', tnm: '경고성, 진지함 강조', goal: '의무감, 책임감 부여 (자가 관리)', summary: '정보 제공 통한 개인 건강 책임감 강조' },
+                { id: '공익-6', name: '혈관 건강(시력표)', file: '6_25.11.17.jpg', tnm: '위트 있는 비유, 경고 메시지', goal: '건강 체크 관심, 예방 행동 유도', summary: '익숙한 비유로 건강 관리 필요성 전달' },
+                { id: '공익-7', name: '딥페이크 퍼즐', file: '7_25.11.14.jpg', tnm: '혼란스러움, 부조화', goal: '위험성 경고, 문제 정의 (범죄)', summary: '시각적 부조화로 문제의 심각성 인지' },
+                { id: '공익-8', name: '헌혈(Plus Influencer)', file: '8_25.11.14.jpg', tnm: '밝음, 감사. 긍정적인 톤', goal: '자부심 부여, 긍정적 참여 독려', summary: '참여 행동에 자부심이라는 가치 부여' },
+                { id: '공익-9', name: '한국전력 안전', file: '9_25.11.12.jpg', tnm: '권위, 신뢰. 진지한 톤', goal: '기업 신뢰, 안전 의지에 대한 확신 제공', summary: '윤리적 책임 표명으로 신뢰도 향상' },
+                { id: '공익-10', name: '전자담배 연기', file: '10_25.11.18.jpg', tnm: '어둡고 위협적인 분위기 연출', goal: '위험성 경고, 금연 행동 촉구', summary: '사실 기반 경고로 공포 심리 활용' }
+            ]
+        };
+
+        // --- 2. 워드 클라우드 데이터 정의 (이전과 동일) ---
+        const wordCloudData = {
+            'global': [
+                ['안심', 8], ['자부심', 7], ['확신', 6], ['동경', 4], ['경고', 4], 
+                ['신뢰', 4], ['기대감', 4], ['책임감', 3], ['즐거움', 3], ['공감', 3],
+                ['세련됨', 3], ['불안감', 3], ['기술', 3], ['만족감', 3], ['우아함', 2],
+                ['호기심', 2], ['친근함', 2], ['유머', 2], ['활력', 2], ['평온함', 2],
+                ['전문성', 2], ['희소성', 1], ['공포', 1], ['정교함', 1], ['미스터리', 1],
+                ['압도적', 1], ['예술적', 1]
+            ],
+            '전자가전': [
+                ['자부심', 4], ['안심', 3], ['기술', 3], ['세련됨', 3], ['동경', 2], 
+                ['호기심', 2], ['전문성', 2], ['우아함', 1], ['신뢰', 1], ['책임감', 1]
+            ],
+            '식품건강': [
+                ['즐거움', 3], ['안심', 3], ['확신', 3], ['식욕', 2], ['유머', 2], 
+                ['친근함', 2], ['평온함', 2], ['신뢰', 1], ['권위', 1], ['안전', 1]
+            ],
+            '화장품': [
+                ['자신감', 4], ['동경', 3], ['자부심', 2], ['안심', 2], ['기대감', 2], 
+                ['진정성', 2], ['몽환적', 1], ['예술적', 1], ['희소성', 1], ['매력', 1]
+            ],
+            '공익단체': [
+                ['경고', 4], ['불안감', 3], ['안심', 3], ['책임감', 2], ['공감', 2], 
+                ['위험', 2], ['죄책감', 1], ['구조', 1], ['자부심', 1], ['공포', 1]
+            ]
+        };
+        
+        let currentSlides = {};
+
+        // --- 3. JavaScript 기능 구현 ---
+
+        // 탭 열기 함수 (슬라이더 대신 정적 목록 로드)
+        function openTab(category, button) {
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+
+            document.getElementById(category).classList.add('active');
+            button.classList.add('active');
+            
+            document.getElementById('welcome-message').classList.remove('active');
+
+            // 정적 목록 로드 함수 호출
+            loadStaticContent(category);
+        }
+
+        // 정적 목록 콘텐츠 로드 함수
+        function loadStaticContent(category) {
+            const container = document.getElementById(category);
+            const data = adData[category];
+            let listHTML = '';
+
+            data.forEach((ad, index) => {
+                listHTML += `
+                    <div class="ad-list-item">
+                        <div class="ad-image-container">
+                            <img src="${ad.file}" alt="${ad.name} 광고 이미지" onerror="this.style.display='none'; this.parentNode.innerHTML='<p style=\\'color:#aaa;\\'>[이미지 로드 실패: ${ad.file}]</p>';">
+                        </div>
+                        <div class="ad-analysis-info">
+                            <h3>${ad.name}</h3>
+                            <p><strong>광고 카테고리:</strong> ${category}</p>
+                            <ul class="key-emotion-list">
+                                <li><strong>시각 분석:</strong> ${ad.tnm}</li>
+                                <li><strong>목표 분석:</strong> ${ad.goal}</li>
+                                <li><strong>핵심 패턴:</strong> ${ad.summary}</li>
+                            </ul>
+                        </div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = `
+                <h2>${category} 광고 (${data.length}개)</h2>
+                ${listHTML}
+            `;
+        }
+
+        // 워드 클라우드 그리기 함수 (이전과 동일)
+        function drawWordCloud(canvasId, dataList) {
+            const canvas = document.getElementById(canvasId);
+            const container = canvas.parentNode;
+
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+
+            if (typeof WordCloud !== 'undefined' && dataList && dataList.length > 0) {
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                WordCloud(canvas, {
+                    list: dataList,
+                    fontFamily: 'Malgun Gothic',
+                    weightFactor: 12, 
+                    gridSize: 8,
+                    color: 'random-dark',
+                    backgroundColor: '#fefefe',
+                    minSize: 10,
+                    rotateRatio: 0,
+                    drawOutOfBound: false,
+                    shrinkToFit: true
+                });
+            }
+        }
+
+        // 모달 내 통계 탭 전환 함수 (이전과 동일)
+        function openStatTab(categoryKey, button) {
+            document.querySelectorAll('.stat-tab-content').forEach(content => content.classList.remove('active'));
+            document.querySelectorAll('.stat-tab-button').forEach(btn => btn.classList.remove('active'));
+
+            document.getElementById(`stat-${categoryKey}`).classList.add('active');
+            button.classList.add('active');
+
+            const canvasId = `wc-${categoryKey}`;
+            const dataList = wordCloudData[categoryKey];
+            drawWordCloud(canvasId, dataList);
+        }
+
+
+        // 모달 열기 (전체 통계)
+        function openModal() {
+            document.getElementById('statisticsModal').style.display = 'block';
+            
+            const defaultButton = document.querySelector('.stat-tab-menu .stat-tab-button:first-child');
+            openStatTab('global', defaultButton);
+        }
+
+        // 모달 닫기
+        function closeModal() {
+            document.getElementById('statisticsModal').style.display = 'none';
+        }
+
+        // 초기 로드
+        document.addEventListener('DOMContentLoaded', () => {
+             // 웰컴 메시지만 보이도록 초기화
+        });
+
+        // 모달 바깥 클릭 시 닫기
+        window.onclick = function(event) {
+            const modal = document.getElementById('statisticsModal');
+            if (event.target == modal) {
+                closeModal();
+            }
+        }
+    </script>
+
+</body>
+</html>
